@@ -1,0 +1,926 @@
+openapi: 3.0.0
+info:
+  title: Jules API
+  version: v1alpha
+  description: |
+    The Jules API lets you programmatically access Jules's capabilities to automate and enhance your
+    software development lifecycle. You can use the API to create custom workflows, automate tasks
+    like bug fixing and code reviews, and embed Jules's intelligence directly into the tools you use
+    every day, such as Slack, Linear, and GitHub.
+
+    **Note**: The Jules API is in an alpha release, which means it is experimental. Be aware that we
+    may change specifications, API keys, and definitions as we work toward stabilization. In the
+    future, we plan to maintain at least one stable and one experimental version.
+  contact:
+    name: Google for Developers
+    url: https://developers.google.com/jules/api
+
+servers:
+  - url: https://jules.googleapis.com/v1alpha
+    description: |
+      Google Jules API Alpha Endpoint
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      description: |
+        Your API key. Generated in the Settings page of the Jules web app.\nMust be included in the
+        `X-Goog-Api-Key` header.
+        **Important**: Keep your API keys secure. Don't share them or embed them in public code. For
+        your protection, any API keys found to be publicly exposed will be automatically disabled to
+        prevent abuse.
+      type: apiKey
+      in: header
+      name: X-Goog-Api-Key
+
+  schemas:
+    Session:
+      description: |
+        A continuous unit of work within a specific context, similar to a chat session. A session is
+        initiated with a prompt and a source.
+      type: object
+      required:
+        - prompt
+        - sourceContext
+      properties:
+        name:
+          description: |
+            Output only. Identifier. The full resource name (e.g., "sessions/{session}").
+          type: string
+          example: "sessions/31415926535897932384"
+        id:
+          description: |
+            Output only. The id of the session. This is the same as the "{session}" part of the
+            resource name (e.g., "sessions/{session}").
+          type: string
+          example: "31415926535897932384"
+        prompt:
+          description: |
+            Required. The prompt to start the session with.
+          type: string
+          example: "Create a boba app!"
+        sourceContext:
+          description: |
+            Required. The source to use in this session, with additional context.
+          allOf:
+            - $ref: "#/components/schemas/SourceContext"
+        title:
+          description: |
+            Optional. If not provided, the system will generate one.
+          type: string
+          example: "Boba App"
+        requirePlanApproval:
+          description: |
+            Optional. Input only. If true, plans the agent generates will require explicit plan
+            approval before the agent starts working. If not set, plans will be auto-approved.
+          type: boolean
+        automationMode:
+          description: |
+            Optional. Input only. The automation mode of the session. If not set, the default
+            automation mode will be used.
+          type: string
+          enum:
+            - AUTOMATION_MODE_UNSPECIFIED
+            - AUTO_CREATE_PR
+        createTime:
+          description: |
+            Output only. The time the session was created.
+            Uses RFC 3339, where generated output will always be Z-normalized and use 0, 3, 6 or 9
+            fractional digits. Offsets other than "Z" are also accepted. Examples:
+            "2014-10-02T15:01:23Z", "2014-10-02T15:01:23.045123456Z" or "2014-10-02T15:01:23+05:30".
+          type: string
+          format: date-time
+        updateTime:
+          description: |
+            Output only. The time the session was last updated.
+            Uses RFC 3339, where generated output will always be Z-normalized and use 0, 3, 6 or 9
+            fractional digits. Offsets other than "Z" are also accepted. Examples:
+            "2014-10-02T15:01:23Z", "2014-10-02T15:01:23.045123456Z" or "2014-10-02T15:01:23+05:30".
+          type: string
+          format: date-time
+        state:
+          description: |
+            Output only. The state of the session.
+          type: string
+          enum:
+            - STATE_UNSPECIFIED,
+            - QUEUED,
+            - PLANNING,
+            - AWAITING_PLAN_APPROVAL,
+            - AWAITING_USER_FEEDBACK,
+            - IN_PROGRESS,
+            - PAUSED,
+            - FAILED,
+            - COMPLETED,
+        url:
+          description: |
+            Output only. The URL of the session to view the session in the Jules web app.
+          type: string
+        outputs:
+          description: |
+            Output only. The outputs of the session, if any.
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionOutput"
+
+    SourceContext:
+      description: |
+        Context for how to use a source in a session.
+      type: object
+      properties:
+        source:
+          description: |
+            Required. The name of the source this context is for. To get the list of sources,
+            use the ListSources API. Format: sources/{source}
+          type: string
+          example: "sources/github/bobalover/boba"
+      oneOf:
+        - type: object
+          description: |
+            Context to use a GitHubRepo in a session.
+          required:
+            - githubRepoContext
+          properties:
+            githubRepoContext:
+              $ref: "#/components/schemas/GithubRepoContext"
+
+    GithubRepoContext:
+      description: |
+        Context to use a GitHubRepo in a session.
+      type: object
+      required:
+        - startingBranch
+      properties:
+        startingBranch:
+          description: |
+            Required. The name of the branch to start the session from.
+          type: string
+
+    SessionOutput:
+      description: |
+        An output of a session.
+      type: object
+      oneOf:
+        - type: object
+          description: |
+            A pull request created by the session, if applicable.
+          required:
+            - pullRequest
+          properties:
+            pullRequest:
+              $ref: "#/components/schemas/PullRequest"
+
+    PullRequest:
+      description: |
+        A pull request.
+      type: object
+      properties:
+        url:
+          description: |
+            The URL of the pull request.
+          type: string
+          example: "https://github.com/bobalover/boba/pull/35"
+        title:
+          description: |
+            The title of the pull request.
+          type: string
+          example: "Create a boba app"
+        description:
+          description: |
+            The description of the pull request.
+          type: string
+          example: "This change adds the initial implementation of a boba app."
+
+    Activity:
+      description: |
+        A single unit of work within a Session. A Session contains multiple activities from both the
+        user and the agent, such as generating a plan, sending a message, or updating progress.
+      type: object
+      properties:
+        name:
+          description: |
+            Identifier. The full resource name (e.g.,
+            "sessions/{session}/activities/{activity}").
+          type: string
+        id:
+          description: |
+            Output only. The id of the activity. This is the same as the "{activity}" part of
+            the resource name (e.g., "sessions/{session}/activities/{activity}").
+          type: string
+        description:
+          description: |
+            Output only. A description of this activity.
+          type: string
+        createTime:
+          description: |
+            Output only. The time at which this activity was created.
+            Uses RFC 3339, where generated output will always be Z-normalized and use 0, 3, 6 or
+            9 fractional digits. Offsets other than "Z" are also accepted. Examples:
+            "2014-10-02T15:01:23Z", "2014-10-02T15:01:23.045123456Z" or
+            "2014-10-02T15:01:23+05:30".
+          type: string
+          format: date-time
+        originator:
+          description: |
+            The entity that this activity originated from (e.g. "user", "agent", "system").
+          type: string
+        artifacts:
+          description: |
+            Output only. The artifacts produced by this activity.
+          type: array
+          items:
+            $ref: "#/components/schemas/Artifact"
+      oneOf:
+        - type: object
+          description: |
+            The agent posted a message.
+          properties:
+            agentMessaged:
+              $ref: "#/components/schemas/AgentMessaged"
+        - type: object
+          description: |
+            The user posted a message.
+          properties:
+            userMessaged:
+              $ref: "#/components/schemas/UserMessaged"
+        - type: object
+          description: |
+            A plan was generated.
+          properties:
+            planGenerated:
+              $ref: "#/components/schemas/PlanGenerated"
+        - type: object
+          description: |
+            A plan was approved.
+          properties:
+            planApproved:
+              $ref: "#/components/schemas/PlanApproved"
+        - type: object
+          description: |
+            There was a progress update.
+          properties:
+            progressUpdated:
+              $ref: "#/components/schemas/ProgressUpdated"
+        - type: object
+          description: |
+            The session was completed.
+          properties:
+            sessionCompleted:
+              $ref: "#/components/schemas/SessionCompleted"
+        - type: object
+          description: |
+            The session failed.
+          properties:
+            sessionFailed:
+              $ref: "#/components/schemas/SessionFailed"
+
+    AgentMessaged:
+      description: |
+        The agent posted a message.
+      type: object
+      required:
+        - agentMessage
+      properties:
+        agentMessage:
+          description: |
+            The message the agent posted.
+          type: string
+
+    UserMessaged:
+      description: |
+        The user posted a message.
+      type: object
+      properties:
+        userMessage:
+          description: |
+            The message the user posted.
+          type: string
+
+    PlanGenerated:
+      description: |
+        A plan was generated.
+      type: object
+      properties:
+        plan:
+          description: |
+            The plan that was generated.
+          allOf:
+            - $ref: "#/components/schemas/Plan"
+
+    Plan:
+      description: |
+        A plan is a sequence of steps that the agent will take to complete the task.
+      type: object
+      properties:
+        id:
+          description: |
+            Output only. ID for this plan; unique within a session.
+          type: string
+        steps:
+          description: |
+            Output only. The steps in the plan.
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanStep"
+        createTime:
+          description: |
+            Output only. Time when the plan was created.
+            Uses RFC 3339, where generated output will always be Z-normalized and use 0, 3, 6 or 9
+            fractional digits. Offsets other than "Z" are also accepted. Examples:
+            "2014-10-02T15:01:23Z", "2014-10-02T15:01:23.045123456Z" or "2014-10-02T15:01:23+05:30".
+          type: string
+          format: date-time
+
+    PlanStep:
+      description: |
+        A step in a plan.
+      type: object
+      properties:
+        id:
+          description: |
+            Output only. ID for this step; unique within a plan.
+          type: string
+        title:
+          description: |
+            Output only. The title of the step.
+          type: string
+        description:
+          description: |
+            Output only. The description of the step.
+          type: string
+        index:
+          description: |
+            Output only. 0-based index into the plan.steps.
+          type: integer
+
+    PlanApproved:
+      description: |
+        A plan was approved.
+      type: object
+      properties:
+        planId:
+          description: |
+            The ID of the plan that was approved.
+          type: string
+
+    ProgressUpdated:
+      description: |
+        There was a progress update.
+      type: object
+      properties:
+        title:
+          description: |
+            The title of the progress update.
+          type: string
+        description:
+          description: |
+            The description of the progress update.
+          type: string
+
+    SessionCompleted:
+      description: |
+        The session was completed.
+        This type has no fields.
+      type: object
+
+    SessionFailed:
+      description: |
+        The session failed.
+      type: object
+      properties:
+        reason:
+          description: |
+            The reason the session failed.
+          type: string
+
+    Artifact:
+      type: object
+      oneOf:
+        - type: object
+          description: |
+            A change set was produced (e.g. code changes).
+          properties:
+            changeSet:
+              $ref: "#/components/schemas/ChangeSet"
+        - type: object
+          description: |
+            A media file was produced (e.g. image, video).
+          properties:
+            media:
+              $ref: "#/components/schemas/Media"
+        - type: object
+          description: |
+            A bash output was produced.
+          properties:
+            bashOutput:
+              $ref: "#/components/schemas/BashOutput"
+
+    ChangeSet:
+      description: |
+        A set of changes to be applied to a source.
+      type: object
+      properties:
+        source:
+          description: |
+            The name of the source this change set applies to. Format: sources/{source}
+          type: string
+      oneOf:
+        - type: object
+          description: |
+            A patch in Git format.
+          properties:
+            gitPatch:
+              $ref: "#/components/schemas/GitPatch"
+
+    GitPatch:
+      description: |
+        A patch in Git format.
+      type: object
+      properties:
+        unidiffPatch:
+          description: |
+            The patch in unidiff format.
+          type: string
+        baseCommitId:
+          description: |
+            The base commit id of the patch. This is the id of the commit that the patch should be
+            applied to.
+          type: string
+        suggestedCommitMessage:
+          description: |
+            A suggested commit message for the patch, if one is generated.
+          type: string
+
+    Media:
+      description: |
+        A media output.
+      type: object
+      properties:
+        data:
+          description: |
+            The media data.
+            A base64-encoded string.
+          type: string
+          format: base64
+        mimeType:
+          description: |
+            The media mime type.
+          type: string
+
+    BashOutput:
+      description: |
+        A bash output.
+      type: object
+      properties:
+        command:
+          description: |
+            The bash command.
+          type: string
+        output:
+          description: |
+            The bash output. Includes both stdout and stderr.
+          type: string
+        exitCode:
+          description: |
+            The bash exit code.
+          type: string
+
+    Source:
+      description: |
+        An input source for the agent (e.g., a GitHub repository). Before using a source using the
+        API, you must first install the Jules GitHub app through the Jules web app.
+      type: object
+      properties:
+        name:
+          description: |
+            Identifier. The full resource name (e.g., "sources/{source}").
+          type: string
+          example: "sources/github/bobalover/boba"
+        id:
+          description: |
+            Output only. The id of the source. This is the same as the "{source}" part of the
+            resource name (e.g., "sources/{source}").
+          type: string
+          example: "github/bobalover/boba"
+      oneOf:
+        - type: object
+          description: |
+            A GitHub repo.
+          properties:
+            githubRepo:
+              $ref: "#/components/schemas/GitHubRepo"
+
+    GitHubRepo:
+      description: |
+        A GitHub repo.
+      type: object
+      properties:
+        owner:
+          type: string
+        repo:
+          type: string
+        isPrivate:
+          type: boolean
+        defaultBranch:
+          description: |
+            The default branch for this repo.
+          allOf:
+            - $ref: "#/components/schemas/GitHubBranch"
+        branches:
+          description: |
+            The list of active branches for this repo.
+          type: array
+          items:
+            $ref: "#/components/schemas/GitHubBranch"
+
+    GitHubBranch:
+      description: |
+        A GitHub branch.
+      type: object
+      properties:
+        displayName:
+          description: |
+            The name of the GitHub branch.
+          type: string
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  "/sessions/{session}:approvePlan":
+    post:
+      operationId: approvePlan
+      summary: Approves a plan in a session.
+      parameters:
+        - name: session
+          in: path
+          required: true
+          schema:
+            type: string
+          description: |
+            Required. The resource name of the session to approve the plan in. Format:
+            sessions/{session} It takes the form sessions/{session}.
+      requestBody:
+        description: |
+          The request body must be empty.
+        content: {}
+      responses:
+        "200":
+          description: |
+            If successful, the response body is empty.
+          content: {}
+        "400":
+          description: |
+            Invalid argument.
+        "403":
+          description: |
+            Permission denied.
+        "404":
+          description: |
+            Session not found.
+  /sessions:
+    post:
+      operationId: createSession
+      summary: Creates a new session.
+      requestBody:
+        description: |
+          The request body contains an instance of Session.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Session"
+      responses:
+        "200":
+          description: |
+            If successful, the response body contains a newly created instance of Session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: |
+            Invalid argument.
+        "403":
+          description: |
+            Permission denied.
+    get:
+      operationId: listSessions
+      summary: Lists all sessions.
+      parameters:
+        - name: pageSize
+          in: query
+          schema:
+            description: |
+              Optional. The number of sessions to return. Must be between 1 and 100, inclusive. If
+              unset, defaults to 30. If set to greater than 100, it will be coerced to 100.
+            type: integer
+        - name: pageToken
+          in: query
+          schema:
+            description: |
+              Optional. A page token, received from a previous sessions.list call.
+            type: string
+      requestBody:
+        content: {}
+      responses:
+        "200":
+          description: |
+            Response message for sessions.list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    description: |
+                      The sessions from the specified request.
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Session"
+                  nextPageToken:
+                    description: |
+                      A token, which can be sent as pageToken to retrieve the next page. If this
+                      field is omitted, there are no subsequent pages.
+                    type: string
+        "400":
+          description: |
+            Invalid argument.
+        "403":
+          description: |
+            Permission denied.
+  /sessions/{name}:
+    get:
+      operationId: getSession
+      summary: Retrieves a specific session.
+      parameters:
+        - name: name
+          description: |
+            The resource name of the session to retrieve.
+            Format: sessions/{session}
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^sessions/[^/]+$"
+            example: "sessions/sess-12345-abcde"
+      responses:
+        "200":
+          description: |
+            If successful, the response body contains an instance of Session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: |
+            Invalid argument.
+        "403":
+          description: |
+            Permission denied.
+        "404":
+          description: |
+            Session Not Found
+
+  "/sessions/{session}:sendMessage":
+    post:
+      operationId: sendMessage
+      summary: Sends a message from the user to a session.
+      parameters:
+        - name: session
+          description: |
+            Required. The resource name of the session to post the message to. Format:
+            sessions/{session} It takes the form sessions/{session}.
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: |
+          The request body contains data with the following structure:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt
+              properties:
+                prompt:
+                  description: |
+                    Required. The user prompt to send to the session
+                  type: string
+                  example: Create a boba app!
+      responses:
+        "200":
+          description: |
+            If successful, the response body is empty.
+          content: {}
+        "400":
+          description: |
+            Invalid argument.
+        "403":
+          description: |
+            Permission denied.
+        "404":
+          description: |
+            Session Not Found
+
+  /sessions/{session}/activities/{activity}:
+    get:
+      operationId: getActivity
+      summary: Gets a single activity.
+      parameters:
+        - name: session
+          description: |
+            Required. The resource name of the activity to retrieve. Format:
+            sessions/{session}/activities/{activity} It takes the form
+            sessions/{session}/activities/{activities}.
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: activity
+          description: |
+            Required. The resource name of the activity to retrieve. Format:
+            sessions/{session}/activities/{activity} It takes the form
+            sessions/{session}/activities/{activities}.
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: |
+          The request body must be empty.
+        content: {}
+      responses:
+        "200":
+          description: |
+            If successful, the response body contains an instance of Activity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Activity"
+        "400":
+          description: |
+            Invalid argument.
+        "403":
+          description: |
+            Permission denied.
+        "404":
+          description: |
+            Session or activity not found
+
+  /sessions/{session}/activities:
+    get:
+      operationId: listActivities
+      summary: Lists activities for a session.
+      parameters:
+        - name: session
+          description: |
+            Required. The parent session, which owns this collection of activities. Format:
+            sessions/{session} It takes the form sessions/{session}.
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: pageSize
+          description: |
+            Optional. The number of activities to return. Must be between 1 and 100, inclusive. If
+            unset, defaults to 50. If set to greater than 100, it will be coerced to 100.
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pageToken
+          description: |
+            Optional. A page token, received from a previous activities.list call.
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        description: |
+          The request body must be empty.
+        content: {}
+      responses:
+        "200":
+          description: |
+            If successful, the response body contains data with the following structure:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activities:
+                    description: |
+                      The activities from the specified session
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Activity"
+                  nextPageToken:
+                    description: |
+                      A token, which can be sent as pageToken to retrieve the next page. If this
+                      field is omitted, there are no subsequent pages.
+                    type: string
+        "400":
+          description: |
+            Invalid argument.
+        "403":
+          description: |
+            Permission denied.
+        "404":
+          description: |
+            Session not found
+  /sources/{name}:
+    get:
+      operationId: getSource
+      summary: Gets a single source.
+      parameters:
+        - name: name
+          description: |
+            Required. The resource name of the source to retrieve. Format: sources/{source} It takes
+            the form sources/{+source}.
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: |
+          The request body must be empty.
+        content: {}
+      responses:
+        "200":
+          description: |
+            If successful, the response body contains an instance of Source.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        "400":
+          description: |
+            Invalid argument.
+        "403":
+          description: |
+            Permission denied.
+        "404":
+          description: |
+            Source not found
+  /sources:
+    get:
+      operationId: listSources
+      summary: Lists sources.
+      parameters:
+        - name: filter
+          description: |
+            Optional. The filter expression for listing sources, based on AIP-160. If not set, all
+            sources will be returned. Currently only supports filtering by name, which can be used
+            to filter by a single source or multiple sources separated by OR.
+          in: query
+          schema:
+            type: string
+          example: |
+            'name=sources/source1 OR name=sources/source2'
+        - name: pageSize
+          description: |
+            Optional. The number of sources to return. Must be between 1 and 100, inclusive. If
+            unset, defaults to 30. If set to greater than 100, it will be coerced to 100.
+          in: query
+          schema:
+            type: integer
+        - name: pageToken
+          description: |
+            Optional. A page token, received from a previous sources.list call.
+          in: query
+          schema:
+            type: string
+      requestBody:
+        description: |
+          The request body must be empty.
+        content: {}
+      responses:
+        "200":
+          description: |
+            If successful, the response body contains data with the following structure:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sources:
+                    description: |
+                      The sources from the specified request.
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Source"
+                  nextPageToken:
+                    description: |
+                      A token, which can be sent as pageToken to retrieve the next page. If this
+                      field is omitted, there are no subsequent pages.
+                    type: string
+        "400":
+          description: |
+            Invalid argument.
+        "403":
+          description: |
+            Permission denied.

@@ -1,46 +1,40 @@
 {
-  "name": "ink-scroll-view",
-  "version": "0.0.1",
-  "description": "A ScrollView component for Ink CLI applications",
+  "name": "jules-api-node",
+  "version": "0.0.5",
+  "description": "Jules API Client",
   "keywords": [
-    "react",
-    "ink",
-    "cli",
-    "terminal",
-    "scrollview",
-    "component",
-    "ui"
+    "jules",
+    "api",
+    "client"
   ],
-  "homepage": "https://www.byteland.app/opensource/ink-scroll-view",
-  "bugs": {
-    "url": "https://github.com/ByteLandTechnology/ink-scroll-view/issues"
-  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ByteLandTechnology/ink-scroll-view.git"
+    "url": "git+https://github.com/ByteLandTechnology/jules-api-node.git"
   },
   "license": "MIT",
   "author": "ByteLand Technology <github@byteland.app>",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "source": "src/index.tsx",
+  "source": "src/index.ts",
   "files": [
-    "dist"
+    "dist",
+    "docs"
   ],
   "scripts": {
     "test": "vitest run",
     "prepare": "husky",
-    "build": "tsup",
-    "docs": "typedoc"
+    "build": "openapi-ts -i jules-openapi.yaml -o src -c @hey-api/client-axios && tsup",
+    "docs": "typedoc --plugin typedoc-plugin-markdown --disableSources --out docs/api && prettier --write docs/api"
   },
   "peerDependencies": {
-    "ink": "^4.0.0",
-    "react": "^18.0.0"
+    "ink": ">=6",
+    "react": ">=19"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.2.0",
     "@commitlint/config-conventional": "^20.2.0",
+    "@hey-api/openapi-ts": "^0.88.1",
     "@sindresorhus/tsconfig": "^8.1.0",
     "@types/ink": "^0.5.2",
     "@types/node": "^24.10.1",
@@ -53,5 +47,8 @@
     "tsup": "^8.5.1",
     "typedoc": "^0.28.15",
     "typedoc-plugin-markdown": "^4.9.0"
+  },
+  "dependencies": {
+    "axios": "^1.13.2"
   }
 }
